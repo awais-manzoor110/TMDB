@@ -79,9 +79,11 @@ jobs:
           GREP="${{ github.event.inputs.grep }}"
           if [ -n "$GREP" ]; then
             echo "Using grep filter: $GREP"
-            # First check whether this shard contains any tests matching the grep filter.
-            match_count=$(npx playwright test "${{ matrix.shard.file }}" --grep "$GREP" --list 2>/dev/null | wc -l | tr -d ' ')
-            if [ "$match_count" = "0" ]; then
+            # Pre-check the shard: Playwright exits non-zero when grep matches zero tests.
+            # We treat that case as a skip so the workflow doesn't fail.
+            list_output=$(npx playwright test "${{ matrix.shard.file }}" --grep "$GREP" --list 2>&1)
+            echo "$list_output"
+            if echo "$list_output" | grep -qi "No tests found"; then
               echo "No matching tests for grep '$GREP' in this shard; skipping."
               exit_code=0
             else
