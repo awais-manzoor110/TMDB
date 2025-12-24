@@ -30,7 +30,7 @@ export class PopularMoviesPage {
           throw err;
         }
       }).toPass({ timeout: TIMEOUT_MS });
-    } catch (_) {
+    } catch {
       console.error(
         "Failure after timeout:",
         typeof this.lastError === "object" && this.lastError && "message" in this.lastError
@@ -125,7 +125,7 @@ export class PopularMoviesPage {
           throw err;
         }
       }).toPass({ timeout: TIMEOUT_MS });
-    } catch (_) {
+    } catch {
       console.error(
         "Failure after timeout:",
         typeof this.lastError === "object" && this.lastError && "message" in this.lastError
