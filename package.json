@@ -1,0 +1,39 @@
+{
+  "name": "tmbd-tests",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:tag": "playwright test --grep",
+    "test:smoke": "playwright test --grep \"@smoke\"",
+    "test:critical": "playwright test --grep \"@critical\"",
+    "test:regression": "playwright test --grep \"@regression\"",
+    "test:search": "playwright test --grep \"@search\"",
+    "test:filters": "playwright test --grep \"@filters\"",
+    "test:firefox": "playwright test --grep \"@firefox\"",
+    "test:msedge": "playwright test --grep \"@msedge\"",
+    "show-report": "playwright show-report",
+    "lint": "eslint .",
+    "format": "prettier . --check",
+    "format:write": "prettier . --write",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.3",
+    "dotenv": "^16.6.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.7.4",
+    "typescript-eslint": "^8.50.1"
+  }
+}
