@@ -79,11 +79,20 @@ jobs:
           GREP="${{ github.event.inputs.grep }}"
           if [ -n "$GREP" ]; then
             echo "Using grep filter: $GREP"
-            xvfb-run -a env CI=true BASE_URL="$BASE_URL" npx playwright test "${{ matrix.shard.file }}" --grep "$GREP" --headed --reporter=list,blob
+            # First check whether this shard contains any tests matching the grep filter.
+            match_count=$(npx playwright test "${{ matrix.shard.file }}" --grep "$GREP" --list 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$match_count" = "0" ]; then
+              echo "No matching tests for grep '$GREP' in this shard; skipping."
+              exit_code=0
+            else
+              xvfb-run -a env CI=true BASE_URL="$BASE_URL" npx playwright test "${{ matrix.shard.file }}" --grep "$GREP" --headed --reporter=list,blob
+              exit_code=$?
+            fi
           else
             xvfb-run -a env CI=true BASE_URL="$BASE_URL" npx playwright test "${{ matrix.shard.file }}" --headed --reporter=list,blob
           fi
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          exit_code=${exit_code:-$?}
+          echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Upload shard report
