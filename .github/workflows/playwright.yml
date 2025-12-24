@@ -51,8 +51,14 @@ jobs:
 
       - name: Install Playwright browsers
         run: |
-          npx playwright install chromium firefox
-          npx playwright install msedge
+          if [ "${{ matrix.shard.index }}" = "4" ]; then
+            echo "Installing browsers for Cross Browser Compatibility shard (firefox + msedge)"
+            npx playwright install firefox
+            npx playwright install msedge
+          else
+            echo "Installing browsers for main suite shards (chromium)"
+            npx playwright install chromium
+          fi
 
       - name: Typecheck
         run: npm run typecheck
@@ -65,7 +71,6 @@ jobs:
         env:
           TMDB_USERNAME: ${{ secrets.TMDB_USERNAME }}
           TMDB_PASSWORD: ${{ secrets.TMDB_PASSWORD }}
-          PLAYWRIGHT_BASE_URL: ${{ vars.PLAYWRIGHT_BASE_URL }}
         run: |
           set +e
           BASE_URL="${PLAYWRIGHT_BASE_URL:-https://www.themoviedb.org}"
@@ -74,9 +79,9 @@ jobs:
           GREP="${{ github.event.inputs.grep }}"
           if [ -n "$GREP" ]; then
             echo "Using grep filter: $GREP"
-            CI=true BASE_URL="$BASE_URL" npx playwright test "${{ matrix.shard.file }}" --grep "$GREP" --reporter=list,blob
+            xvfb-run -a env CI=true BASE_URL="$BASE_URL" npx playwright test "${{ matrix.shard.file }}" --grep "$GREP" --headed --reporter=list,blob
           else
-            CI=true BASE_URL="$BASE_URL" npx playwright test "${{ matrix.shard.file }}" --reporter=list,blob
+            xvfb-run -a env CI=true BASE_URL="$BASE_URL" npx playwright test "${{ matrix.shard.file }}" --headed --reporter=list,blob
           fi
           echo "exit_code=$?" >> $GITHUB_OUTPUT
         continue-on-error: true

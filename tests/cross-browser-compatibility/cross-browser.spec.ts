@@ -1,6 +1,6 @@
 import { test, GlobalSearchPage, SearchResultsPage, getAuthenticatedContext } from "../../utils/fileImports/import";
 
-test.describe("Global Search – Main Page", () => {
+test.describe("Cross Browser Compatibility", () => {
   let searchResultsPage: SearchResultsPage, globalSearchPage: GlobalSearchPage;
 
   test("TC-RES-01: Search redirected to a dedicated results screen on firefox @firefox", async () => {
