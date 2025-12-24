@@ -237,6 +237,16 @@ The workflow uses a matrix with one shard per spec group (search, navigation, po
 
 Open the workflow run in GitHub Actions and download the **`final-html-report`** artifact.
 
+### CI note: headless vs headed runs
+
+On GitHub Actions runners, the TMDB site may intermittently block requests from **headless Chromium** (for example, returning a CloudFront 403). If you need a more realistic browser mode on Ubuntu CI, run tests in **headed** mode using a virtual display:
+
+```sh
+xvfb-run -a npx playwright test --headed
+```
+
+This doesn’t guarantee bypassing IP-based/CDN restrictions, but it can reduce headless-specific blocking and helps reproduce UI behavior closer to local runs.
+
 ---
 
 ## Notes & assumptions
