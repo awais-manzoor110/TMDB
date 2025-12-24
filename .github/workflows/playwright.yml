@@ -1,0 +1,149 @@
+name: User Interface
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to test (optional)"
+        required: false
+        default: ""
+      grep:
+        description: "Playwright --grep filter (optional). Example: @smoke or @critical"
+        required: false
+        default: ""
+  pull_request:
+  schedule:
+    - cron: "0 6 * * *" # Run daily at 06:00 UTC
+
+concurrency:
+  group: user-interface-tests
+  cancel-in-progress: false
+
+jobs:
+  one-ui-shard:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          [
+            { index: 0, name: "Global Search", file: "tests/search/global-search.spec.ts" },
+            { index: 1, name: "Search Results Navigation and State", file: "tests/search/search-results-state.spec.ts" },
+            { index: 2, name: "Navigation", file: "tests/navigation/" },
+            { index: 3, name: "Popular Movies Filter Combinations", file: "tests/popular-movies/popular-movies-filters.spec.ts" },
+            { index: 4, name: "Cross Browser Compatibility", file: "tests/cross-browser-compatibility/cross-browser.spec.ts" }
+          ]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.commit_sha || github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Clean install
+        run: npm ci --retry=5 --fetch-retries=3 --fetch-retry-mintimeout=20000
+
+      - name: Install Playwright browsers
+        run: |
+          npx playwright install chromium firefox
+          npx playwright install msedge
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run shard ${{ matrix.shard.index }} - ${{ matrix.shard.name }}
+        id: run-tests
+        env:
+          TMDB_USERNAME: ${{ secrets.TMDB_USERNAME }}
+          TMDB_PASSWORD: ${{ secrets.TMDB_PASSWORD }}
+          PLAYWRIGHT_BASE_URL: ${{ vars.PLAYWRIGHT_BASE_URL }}
+        run: |
+          set +e
+          BASE_URL="${PLAYWRIGHT_BASE_URL:-https://www.themoviedb.org}"
+          echo "Using BASE_URL=$BASE_URL"
+          echo "Running ${{ matrix.shard.name }}"
+          GREP="${{ github.event.inputs.grep }}"
+          if [ -n "$GREP" ]; then
+            echo "Using grep filter: $GREP"
+            CI=true BASE_URL="$BASE_URL" npx playwright test "${{ matrix.shard.file }}" --grep "$GREP" --reporter=list,blob
+          else
+            CI=true BASE_URL="$BASE_URL" npx playwright test "${{ matrix.shard.file }}" --reporter=list,blob
+          fi
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Upload shard report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shard-report-${{ matrix.shard.index }}-${{ matrix.shard.name }}
+          path: blob-report
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Fail this shard if tests failed
+        if: steps.run-tests.outputs.exit_code != '0'
+        run: exit 1
+
+  merge-reports:
+    needs: one-ui-shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download all shard reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-shards
+
+      - name: Merge HTML reports
+        run: |
+          mkdir -p merged-blob-reports
+          # Copy all blob reports to the merged directory
+          for shard_dir in ./all-shards/shard-report-*; do
+            if [ -d "$shard_dir" ]; then
+              # Check if blob-report directory exists
+              if [ -d "$shard_dir/blob-report" ]; then
+                cp -r "$shard_dir/blob-report"/* merged-blob-reports/ 2>/dev/null || true
+              else
+                # Check if there are any files directly in the shard directory
+                if [ "$(ls -A "$shard_dir" 2>/dev/null)" ]; then
+                  cp -r "$shard_dir"/* merged-blob-reports/ 2>/dev/null || true
+                fi
+              fi
+            fi
+          done
+
+          if [ "$(ls -A merged-blob-reports 2>/dev/null)" ]; then
+            npx playwright merge-reports --reporter html merged-blob-reports
+            mv playwright-report merged-report
+          else
+            echo "ERROR: No files found in merged-blob-reports directory"
+            exit 1
+          fi
+
+      - name: Upload merged HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-html-report
+          path: merged-report
+          retention-days: 7
