@@ -1,0 +1,32 @@
+name: Quality Gates
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+concurrency:
+  group: quality-gates
+  cancel-in-progress: false
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Clean install
+        run: npm ci --retry=5 --fetch-retries=3 --fetch-retry-mintimeout=20000
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
