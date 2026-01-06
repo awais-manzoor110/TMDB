@@ -12,8 +12,6 @@ on:
         required: false
         default: ""
   pull_request:
-  schedule:
-    - cron: "0 6 * * *" # Run daily at 06:00 UTC
 
 concurrency:
   group: user-interface-tests
