@@ -41,6 +41,7 @@ tests/
 utils/
   constant-timeout/
   fileImports/
+  fixtures/
   login-utils/
 
 .github/workflows/playwright.yml
@@ -54,10 +55,29 @@ eslint.config.js
 
 ## Architecture
 
-### Page Object Model (POM)
+### Page Object Model (POM) + Fixtures
 
 All selectors and UI interactions are encapsulated inside page objects under `pages/`.
 Tests call intent-driven methods (e.g., `search()`, `switchCategory()`, `sortMoviesBy()`) rather than raw selectors.
+
+Page objects are injected into tests via **Playwright fixtures** (`utils/fixtures/fixtures.ts`) instead of being
+manually instantiated in `beforeEach`. A test simply declares the page objects it needs as arguments:
+
+```ts
+import { test } from "../../utils/fileImports/import";
+
+test("search redirects to results", async ({ globalSearchPage, searchResultsPage }) => {
+  await globalSearchPage.search("global search", "Inception");
+  await searchResultsPage.expectSearchPageLoaded();
+});
+```
+
+Each page object is lazily built on a shared **authenticated** `page` (the `authedPage` fixture wraps
+`getAuthenticatedContext()`), and the page is closed automatically when the test ends — so there is no
+`new XxxPage(page)` boilerplate and no manual `afterEach` cleanup.
+
+> Cross-browser tests (`tests/cross-browser-compatibility/`) call `getAuthenticatedContext()` directly,
+> because they need per-test Firefox/Edge contexts rather than the chromium `authedPage` fixture.
 
 ### Authenticated context (cookie reuse)
 
