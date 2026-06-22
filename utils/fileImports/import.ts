@@ -5,7 +5,8 @@ import { NavigationPage } from "../../pages/navigationPage";
 import { GlobalSearchPage } from "../../pages/globalSearchPage.ts";
 import { SearchResultsPage } from "../../pages/searchResultsPage";
 import { PopularMoviesPage } from "../../pages/popularMoviesPage";
-import { test, expect, chromium, firefox, webkit } from "@playwright/test";
+import { chromium, firefox, webkit } from "@playwright/test";
+import { test, expect } from "../fixtures/base.fixtures.ts";
 import { getAuthenticatedContext } from "../login-utils/authenticatedContext";
 import { loadCookies, saveCookies } from "../../utils/login-utils/cookieStorage.js";
 
