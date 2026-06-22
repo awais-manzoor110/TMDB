@@ -1,26 +1,15 @@
-import {
-  test,
-  Page,
-  GlobalSearchPage,
-  SearchResultsPage,
-  getAuthenticatedContext,
-} from "../../utils/fileImports/import";
+import { test } from "../../utils/fileImports/import";
 
 test.describe("Search Results – Navigation & State", () => {
-  let page: Page, searchResultsPage: SearchResultsPage, globalSearchPage: GlobalSearchPage;
-
-  test.beforeEach("Login", async () => {
-    ({ page } = await getAuthenticatedContext());
-    globalSearchPage = new GlobalSearchPage(page);
-    searchResultsPage = new SearchResultsPage(page);
-
+  test.beforeEach("Seed search", async ({ globalSearchPage, searchResultsPage }) => {
     await globalSearchPage.search("global search", "Inception");
     await searchResultsPage.expectSearchTitleContains("Inception");
   });
-  test.afterEach("CleanUp", async () => {
-    await page.close();
-  });
-  test("TC-SRCH-05 – Search persistence across categories @high @search @regression", async () => {
+
+  test("TC-SRCH-05 – Search persistence across categories @high @search @regression", async ({
+    globalSearchPage,
+    searchResultsPage,
+  }) => {
     await globalSearchPage.search("global search", "Inception");
     await searchResultsPage.expectSearchTitleContains("Inception");
     await searchResultsPage.switchCategory("movie");
@@ -40,19 +29,28 @@ test.describe("Search Results – Navigation & State", () => {
     await searchResultsPage.switchCategory("award");
     await searchResultsPage.expectCategorySwitchHaveResults("award", "inception");
   });
-  test("TC-SRCH-06: – Result card → details page integrity @critical @search @regression", async () => {
+  test("TC-SRCH-06: – Result card → details page integrity @critical @search @regression", async ({
+    globalSearchPage,
+    searchResultsPage,
+  }) => {
     await globalSearchPage.search("global search", "Inception");
     await searchResultsPage.expectSearchTitleContains("Inception");
     await searchResultsPage.clickMovie("Inception");
     await searchResultsPage.expectMovieDetailsIntegrity();
   });
-  test("TC-SRCH-07: – Result card → details page integrity -- Failure Case @medium @search @regression", async () => {
+  test("TC-SRCH-07: – Result card → details page integrity -- Failure Case @medium @search @regression", async ({
+    globalSearchPage,
+    searchResultsPage,
+  }) => {
     await globalSearchPage.search("global search", "Sisu");
     await searchResultsPage.expectSearchTitleContains("Sisu");
     await searchResultsPage.clickMovie("Sisu");
     await searchResultsPage.expectMovieDetailsIntegrity();
   });
-  test("TC-SRCH-08 – Back navigation preserves results state @high @search @regression", async () => {
+  test("TC-SRCH-08 – Back navigation preserves results state @high @search @regression", async ({
+    globalSearchPage,
+    searchResultsPage,
+  }) => {
     await globalSearchPage.search("global search", "Inception");
     await searchResultsPage.expectSearchTitleContains("Inception");
     await searchResultsPage.clickMovie("Inception");
