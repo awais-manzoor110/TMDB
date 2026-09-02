@@ -4,6 +4,7 @@ import { GlobalSearchPage } from "../../pages/globalSearchPage";
 import { SearchResultsPage } from "../../pages/searchResultsPage";
 import { NavigationPage } from "../../pages/navigationPage";
 import { PopularMoviesPage } from "../../pages/popularMoviesPage";
+import { AwardsPage } from "../../pages/awardsPage";
 import { getAuthenticatedContext } from "../login-utils/authenticatedContext";
 
 type TmdbFixtures = {
@@ -13,6 +14,7 @@ type TmdbFixtures = {
   searchResultsPage: SearchResultsPage;
   navigationPage: NavigationPage;
   popularMoviesPage: PopularMoviesPage;
+  awardsPage: AwardsPage;
 };
 
 export const test = base.extend<TmdbFixtures>({
@@ -37,6 +39,10 @@ export const test = base.extend<TmdbFixtures>({
 
   popularMoviesPage: async ({ authedPage }, use) => {
     await use(new PopularMoviesPage(authedPage));
+  },
+
+  awardsPage: async ({ authedPage }, use) => {
+    await use(new AwardsPage(authedPage));
   },
 });
 

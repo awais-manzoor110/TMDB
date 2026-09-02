@@ -5,6 +5,7 @@ import { NavigationPage } from "../../pages/navigationPage";
 import { GlobalSearchPage } from "../../pages/globalSearchPage.ts";
 import { SearchResultsPage } from "../../pages/searchResultsPage";
 import { PopularMoviesPage } from "../../pages/popularMoviesPage";
+import { AwardsPage } from "../../pages/awardsPage";
 import { chromium, firefox, webkit } from "@playwright/test";
 import { test, expect } from "../fixtures/base.fixtures.ts";
 import { getAuthenticatedContext } from "../login-utils/authenticatedContext";
@@ -24,6 +25,7 @@ export {
   NavigationPage,
   GlobalSearchPage,
   SearchResultsPage,
+  AwardsPage,
   PopularMoviesPage,
   getAuthenticatedContext,
 };
