@@ -9,7 +9,7 @@ export class NavigationPage {
     await this.page.locator('[aria-label="Home"]').click();
   }
   async expectPageLoaded(text: string) {
-    await expect(this.page.locator('[class="title"]')).toHaveText(text, { timeout: TIMEOUT_MS });
+    await expect(this.page.locator(".title > h2")).toHaveText(text, { timeout: TIMEOUT_MS });
     await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
   }
   async goToMovies() {
@@ -19,6 +19,12 @@ export class NavigationPage {
   async goToPopularMovies() {
     await this.goToMovies();
     await this.page.getByLabel("Movies").locator("..").getByLabel("Popular").click();
+  }
+
+  async goToPopularAwards() {
+    const awardsMenu = this.page.getByRole("menuitem", { name: "Awards", exact: true });
+    await awardsMenu.hover();
+    await awardsMenu.locator("..").getByRole("menuitem", { name: "Popular", exact: true }).click();
   }
 
   async switchLanguage(language: string) {
