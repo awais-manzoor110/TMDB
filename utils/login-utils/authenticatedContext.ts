@@ -26,9 +26,10 @@ async function loginStep(page: Page) {
   try {
     await expect(async () => {
       await page.goto(`${LOGIN_URL}/login`);
-      await page.fill("#username", requireEnv("TMDB_USERNAME"));
-      await page.fill("#password", requireEnv("TMDB_PASSWORD"));
-      await page.locator("#login_button").click();
+      const loginForm = page.locator("main").first();
+      await loginForm.locator("#auth_username").fill(requireEnv("TMDB_USERNAME"));
+      await loginForm.locator("#auth_password").fill(requireEnv("TMDB_PASSWORD"));
+      await loginForm.locator("#auth_login_button").click();
 
       await page.waitForLoadState("networkidle");
       await expect(page.locator("span.avatar.green")).toBeVisible();
@@ -86,7 +87,7 @@ export async function getAuthenticatedContext(browserOptions: BrowserOptions = {
       browser = await chromium.launch({ ...launchOptions, channel: "chrome" });
       break;
     default:
-      browser = await chromium.launch(launchOptions);
+      browser = await chromium.launch({ headless: false, ...launchOptions });
   }
 
   // 🕒 Apply timezone if specified, otherwise use system default
