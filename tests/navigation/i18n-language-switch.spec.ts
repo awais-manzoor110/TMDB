@@ -1,4 +1,4 @@
-import { test } from "../../utils/fileImports/import";
+import { test } from "../../utils/fixtures/base.fixtures";
 
 test.describe("Language Switch", () => {
   test("TC-PAG-02: Language switch affects UI elements @high @navigation @i18n", async ({ navigationPage }) => {

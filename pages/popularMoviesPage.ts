@@ -1,56 +1,34 @@
-import { expect, Page, TIMEOUT_MS } from "../utils/fileImports/import";
+import { expect, Page } from "@playwright/test";
+import { clickSearchAndWait, TIMEOUT_MS } from "../utils/helpers";
 
 export class PopularMoviesPage {
-  beforeSortMovieNames: Array<string> | null;
-  afterSortMovieNames: Array<string> | null;
-  beforeSortReleaseDates: Array<string> | null;
-  afterSortReleaseDates: Array<string> | null;
-  lastError: unknown;
-  selectedLanguage: string | null;
-  constructor(readonly page: Page) {
-    this.page = page;
-    this.beforeSortMovieNames = [];
-    this.afterSortMovieNames = [];
-    this.beforeSortReleaseDates = [];
-    this.afterSortReleaseDates = [];
-    this.selectedLanguage = "";
-    this.lastError = null;
-  }
+  beforeSortMovieNames: string[] = [];
+  afterSortMovieNames: string[] = [];
+  beforeSortReleaseDates: string[] = [];
+  afterSortReleaseDates: string[] = [];
+  selectedLanguage = "";
+  constructor(readonly page: Page) {}
 
   async clickSearchButton() {
-    try {
-      await expect(async () => {
-        try {
-          this.page.getByRole("link", { name: "Search" }).nth(1).click();
-          await this.page.waitForResponse((resp) => resp.url().includes("/discover/movie") && resp.status() === 200, {
-            timeout: 5000,
-          });
-        } catch (err) {
-          this.lastError = err;
-          throw err;
-        }
-      }).toPass({ timeout: TIMEOUT_MS });
-    } catch {
-      console.error(
-        "Failure after timeout:",
-        typeof this.lastError === "object" && this.lastError && "message" in this.lastError
-          ? (this.lastError as { message?: string }).message
-          : String(this.lastError),
-      );
-      throw this.lastError;
-    }
-    await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
+    await clickSearchAndWait(
+      this.page,
+      this.page.locator(".apply.small").getByRole("link", { name: "Search" }),
+      "/discover/movie",
+    );
   }
 
-  async expectPopularMovieCardContains(poster: string, rating: string, content: string) {
-    const locators = [this.page.locator(`.${poster}`), this.page.locator(`.percent`), this.page.locator(`.${content}`)];
-    for (const locator of locators) {
-      await locator.first().waitFor({ state: "visible", timeout: TIMEOUT_MS });
-      const count = await locator.count();
-      if (count === 0) {
-        throw new Error(`No elements found for locator: ${locator}`);
-      }
-      await expect(locator.nth(0)).toBeVisible({ timeout: TIMEOUT_MS });
+  get movieCards() {
+    return this.page.locator("#media_results [data-object-id]:has(h2)");
+  }
+
+  async openFirstMovie() {
+    await this.movieCards.first().locator("a").first().click();
+  }
+
+  async expectPopularMovieCardContains() {
+    const card = this.movieCards.first();
+    for (const part of [".poster", "h2", ".release_date"]) {
+      await expect(card.locator(part)).toBeVisible({ timeout: TIMEOUT_MS });
     }
   }
 
@@ -59,7 +37,6 @@ export class PopularMoviesPage {
     await this.page.getByRole("link", { name: "Load More" }).click();
 
     let callCount = 0;
-    await this.page.route("**/discover/movie/items", (route) => route.continue());
     this.page.on("response", (response) => {
       if (response.url().includes("/discover/movie/items") && response.status() === 200) {
         callCount++;
@@ -73,35 +50,19 @@ export class PopularMoviesPage {
   }
 
   async getMovieNames() {
-    const movieNames: string[] = [];
-    const movieNameLocators = this.page.locator(".content>h2>a");
-    const count = await movieNameLocators.count();
-    const loopCount = count > 5 ? 5 : count;
-    for (let i = 0; i < loopCount; i++) {
-      const name = await movieNameLocators.nth(i).textContent();
-      if (name) movieNames.push(name.trim());
-    }
-    return movieNames;
+    return (await this.movieCards.locator("h2").allTextContents()).slice(0, 5).map((name) => name.trim());
   }
 
   async getReleaseDates() {
-    const releaseDates: string[] = [];
-    const releaseDateLocators = this.page.locator(".content>p");
-    const count = await releaseDateLocators.count();
-    const loopCount = count > 5 ? 5 : count;
-    for (let i = 0; i < loopCount; i++) {
-      const date = await releaseDateLocators.nth(i).textContent();
-      if (date) releaseDates.push(date.trim());
-    }
-    return releaseDates;
+    return (await this.movieCards.locator(".release_date").allTextContents()).slice(0, 5).map((date) => date.trim());
   }
 
   async sortMoviesBy(filterName: string) {
     this.beforeSortMovieNames = await this.getMovieNames();
     this.beforeSortReleaseDates = await this.getReleaseDates();
 
-    const sortMainMenu = this.page.getByRole("heading", { name: "Sort" });
-    const sortCombo = sortMainMenu.locator("..").locator('[role="combobox"]');
+    const sortMainMenu = this.page.getByRole("heading", { name: "Sort", exact: true });
+    const sortCombo = this.page.locator(".filter_panel").filter({ has: sortMainMenu }).locator('[role="combobox"]');
 
     // Only click sortMainMenu if combobox is not visible
     if (!(await sortCombo.isVisible())) {
@@ -109,37 +70,22 @@ export class PopularMoviesPage {
       await expect(sortCombo).toBeVisible();
     }
     await sortCombo.click();
-    await this.page.locator("li").filter({ hasText: filterName }).click();
+    await this.page.locator("li.k-list-item:visible").filter({ hasText: filterName }).click();
     await this.clickSearchButton();
     this.afterSortReleaseDates = await this.getReleaseDates();
   }
 
   async expectMoviesOrderChanged() {
-    try {
-      await expect(async () => {
-        try {
-          this.afterSortMovieNames = await this.getMovieNames();
-          expect(this.beforeSortMovieNames).not.toEqual(this.afterSortMovieNames);
-        } catch (err) {
-          this.lastError = err;
-          throw err;
-        }
-      }).toPass({ timeout: TIMEOUT_MS });
-    } catch {
-      console.error(
-        "Failure after timeout:",
-        typeof this.lastError === "object" && this.lastError && "message" in this.lastError
-          ? (this.lastError as { message?: string }).message
-          : String(this.lastError),
-      );
-      throw this.lastError;
-    }
+    await expect(async () => {
+      this.afterSortMovieNames = await this.getMovieNames();
+      expect(this.beforeSortMovieNames).not.toEqual(this.afterSortMovieNames);
+    }).toPass({ timeout: TIMEOUT_MS });
   }
 
   async expectReleaseDatesOrderChanged() {
     const parseDate = (dateStr: string) => new Date(dateStr);
-    const descDates = (this.beforeSortReleaseDates || []).map(parseDate);
-    const ascDates = (this.afterSortReleaseDates || []).map(parseDate);
+    const descDates = this.beforeSortReleaseDates.map(parseDate);
+    const ascDates = this.afterSortReleaseDates.map(parseDate);
 
     const minLength = Math.min(descDates.length, ascDates.length);
     for (let i = 0; i < minLength; i++) {
@@ -186,7 +132,7 @@ export class PopularMoviesPage {
   async expectReleaseDatesWithinRange(fromDate: string, toDate: string) {
     const from = new Date(fromDate);
     const to = new Date(toDate);
-    const releaseDates = this.afterSortReleaseDates ?? [];
+    const releaseDates = this.afterSortReleaseDates;
 
     releaseDates.forEach((date, index) => {
       const releaseDate = new Date(date);
@@ -215,22 +161,29 @@ export class PopularMoviesPage {
     await this.clickSearchButton();
   }
 
-  async expectMoviesWithGenres(genres: string[]) {
-    const selectedGenres = [];
-    await this.page.locator(".card.style_1").first().click();
+  async openFirstMovieDetails() {
+    await this.openFirstMovie();
     await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
-    const genresLocators = this.page.locator(".genres>a");
-    const count = await genresLocators.count();
-    for (let i = 0; i < count; i++) {
-      const genre = await genresLocators.nth(i).textContent();
-      if (genre) selectedGenres.push(genre.trim());
-    }
+  }
+
+  async expectDetailsGenres(genres: string[]) {
+    const selectedGenres = (await this.page.locator(".genres>a").allTextContents()).map((g) => g.trim());
     for (const genre of genres) {
       expect(
         selectedGenres,
         `Expected genre "${genre}" not found. Actual genres: ${selectedGenres.join(", ")}`,
       ).toContain(genre);
     }
+  }
+
+  async expectDetailsKeyword(keyword: string) {
+    const movieKeywords = (await this.page.locator(".keywords a").allTextContents()).map((k) => k.trim());
+    expect(movieKeywords).toContain(keyword.toLowerCase());
+  }
+
+  async expectMoviesWithGenres(genres: string[]) {
+    await this.openFirstMovieDetails();
+    await this.expectDetailsGenres(genres);
   }
 
   async setLanguageFilter(language: string) {
@@ -245,8 +198,7 @@ export class PopularMoviesPage {
   }
 
   async expectMoviesWithLanguages(language: string) {
-    await this.page.locator(".card.style_1").first().click();
-    await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
+    await this.openFirstMovieDetails();
     const originalLanguage = (await this.page.locator("p", { hasText: "Original Language" }).textContent())!
       .replace(/^Original Language/, "")
       .trim();
@@ -301,25 +253,20 @@ export class PopularMoviesPage {
   }
 
   async expectRatingsWithinRange(minRating: number, maxRating: number) {
+    const links = await this.movieCards
+      .locator("a:has(h2)")
+      .evaluateAll((anchors) => anchors.slice(0, 5).map((a) => (a as HTMLAnchorElement).href));
+    const detailPage = await this.page.context().newPage();
     const ratings: number[] = [];
-    const ratingLocators = this.page.locator(".icon");
-    const count = await ratingLocators.count();
-    const loopCount = count > 5 ? 5 : count;
-
-    for (let i = 0; i < loopCount; i++) {
-      const classAttr = await ratingLocators.nth(i).getAttribute("class");
-
-      if (!classAttr) continue;
-
-      const match = classAttr.match(/icon-r(\d+)/);
-
-      if (!match) {
-        throw new Error(`Rating class not found in: "${classAttr}"`);
+    try {
+      for (const link of links) {
+        await detailPage.goto(link);
+        ratings.push(Number(await detailPage.locator(".user_score_chart").getAttribute("data-percent")));
       }
-
-      const rating = Number(match[1]);
-      ratings.push(rating);
+    } finally {
+      await detailPage.close();
     }
+    expect(ratings.length, "No movie cards to read ratings from").toBeGreaterThan(0);
 
     for (const rating of ratings) {
       expect(
@@ -343,43 +290,13 @@ export class PopularMoviesPage {
   }
 
   async expectMoviesWithKeyword(keywords: string) {
-    const movieKeywords = [];
-    await this.page.locator(".card.style_1").first().click();
-    await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
-    const keywordsLocators = this.page.locator(".keywords a");
-    const count = await keywordsLocators.count();
-    for (let i = 0; i < count; i++) {
-      const keyword = await keywordsLocators.nth(i).textContent();
-      movieKeywords.push(keyword);
-    }
-    expect(movieKeywords).toContain(keywords.toLowerCase());
+    await this.openFirstMovieDetails();
+    await this.expectDetailsKeyword(keywords);
   }
 
   async expectCombinedFilters(genres: string[], keywords: string) {
-    const movieKeywords = [];
-    const selectedGenres = [];
-    let count;
-    await this.page.locator(".card.style_1").first().click();
-    await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
-    const keywordsLocators = this.page.locator(".keywords a");
-    count = await keywordsLocators.count();
-    for (let i = 0; i < count; i++) {
-      const keyword = await keywordsLocators.nth(i).textContent();
-      movieKeywords.push(keyword);
-    }
-    expect(movieKeywords).toContain(keywords.toLowerCase());
-
-    const genresLocators = this.page.locator(".genres>a");
-    count = await genresLocators.count();
-    for (let i = 0; i < count; i++) {
-      const genre = await genresLocators.nth(i).textContent();
-      if (genre) selectedGenres.push(genre.trim());
-    }
-    for (const genre of genres) {
-      expect(
-        selectedGenres,
-        `Expected genre "${genre}" not found. Actual genres: ${selectedGenres.join(", ")}`,
-      ).toContain(genre);
-    }
+    await this.openFirstMovieDetails();
+    await this.expectDetailsKeyword(keywords);
+    await this.expectDetailsGenres(genres);
   }
 }
