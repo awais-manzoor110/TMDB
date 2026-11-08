@@ -9,7 +9,7 @@ test.describe("Popular Movies – Filters", () => {
   test("TC-POP-01: Default Popular Movies load correctly @smoke @critical @popular @filters", async ({
     popularMoviesPage,
   }) => {
-    await popularMoviesPage.expectPopularMovieCardContains("poster", "rating", "content");
+    await popularMoviesPage.expectPopularMovieCardContains();
     await popularMoviesPage.expectInfiniteScroll(3);
   });
   test("TC-POP-02: Sort order by Popularity Ascending actually affects data @high @popular @filters @sorting", async ({
@@ -78,11 +78,21 @@ test.describe("Popular Movies – Filters", () => {
     await popularMoviesPage.moveSliderFor("Runtime", 10, 10);
     await popularMoviesPage.expectMoviesOrderChanged();
   });
-  test("TC-POP-13: keyword filter  @high @popular @filters", async ({ popularMoviesPage }) => {
-    await popularMoviesPage.setKeywordFilter("Inception");
-    await popularMoviesPage.expectMoviesOrderChanged();
-    await popularMoviesPage.expectMoviesWithKeyword("Inception");
-  });
+  test.fixme(
+    "TC-POP-13: keyword filter  @high @popular @filters",
+    {
+      annotation: {
+        type: "bug",
+        description:
+          'TMDB app bug: keyword search for "Inception" no longer offers the exact keyword "inception" (only fuzzy matches like "invention", "infection"), and the Inception movie no longer lists it. Re-enable once TMDB restores the keyword.',
+      },
+    },
+    async ({ popularMoviesPage }) => {
+      await popularMoviesPage.setKeywordFilter("Inception");
+      await popularMoviesPage.expectMoviesOrderChanged();
+      await popularMoviesPage.expectMoviesWithKeyword("Inception");
+    },
+  );
   test("TC-POP-14: Combined filters produce correct intersection @critical @popular @filters @regression", async ({
     popularMoviesPage,
   }) => {
