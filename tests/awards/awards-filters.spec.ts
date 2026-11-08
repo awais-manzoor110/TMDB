@@ -1,4 +1,4 @@
-import { test } from "../../utils/fileImports/import";
+import { test } from "../../utils/fixtures/base.fixtures";
 
 test.describe("Awards – Filters", () => {
   test.beforeEach("Go to Popular Awards", async ({ navigationPage }) => {

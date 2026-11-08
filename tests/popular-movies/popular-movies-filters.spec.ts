@@ -1,4 +1,4 @@
-import { test } from "../../utils/fileImports/import";
+import { test } from "../../utils/fixtures/base.fixtures";
 
 test.describe("Popular Movies – Filters", () => {
   test.beforeEach("Go to Popular Movies", async ({ navigationPage }) => {

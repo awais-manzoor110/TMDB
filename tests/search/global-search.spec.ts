@@ -1,4 +1,4 @@
-import { test } from "../../utils/fileImports/import";
+import { test } from "../../utils/fixtures/base.fixtures";
 
 test.describe("Global Search – Main Page", () => {
   test("TC-SRCH-01: Search redirected to a dedicated results screen @smoke @critical @search", async ({

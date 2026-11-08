@@ -1,4 +1,4 @@
-import { test } from "../../utils/fileImports/import";
+import { test } from "../../utils/fixtures/base.fixtures";
 
 test.describe("Search Results – Navigation & State", () => {
   test.beforeEach("Seed search", async ({ globalSearchPage, searchResultsPage }) => {
