@@ -1,20 +1,15 @@
-import { expect, Page, TIMEOUT_MS } from "../utils/fileImports/import";
+import { expect, Page } from "@playwright/test";
+import { TIMEOUT_MS } from "../utils/helpers";
 
 export type SearchCategory = "movie" | "tv" | "person" | "company" | "keyword" | "collection" | "network" | "award";
 
 export class SearchResultsPage {
-  resultPageMovieName: string | null;
-  resultPageMovieReleaseDate: string | null;
-  detailPageMovieName: string | null;
-  detailPageMovieReleaseDate: string | null;
+  resultPageMovieName: string | null = null;
+  resultPageMovieReleaseDate: string | null = null;
+  detailPageMovieName: string | null = null;
+  detailPageMovieReleaseDate: string | null = null;
 
-  constructor(readonly page: Page) {
-    this.page = page;
-    this.resultPageMovieName = null;
-    this.resultPageMovieReleaseDate = null;
-    this.detailPageMovieName = null;
-    this.detailPageMovieReleaseDate = null;
-  }
+  constructor(readonly page: Page) {}
 
   async clickMovie(movieName: string) {
     await this.page.getByRole("link", { name: movieName }).first().click();
@@ -52,29 +47,11 @@ export class SearchResultsPage {
     this.resultPageMovieName = (await card.locator("h2 > span").first().innerText()).trim();
 
     const releaseDateRaw = await card.locator(".release_date").innerText();
-    const months: { [key: string]: string } = {
-      January: "01",
-      February: "02",
-      March: "03",
-      April: "04",
-      May: "05",
-      June: "06",
-      July: "07",
-      August: "08",
-      September: "09",
-      October: "10",
-      November: "11",
-      December: "12",
-    };
-    const dateMatch = releaseDateRaw.match(/^(\w+) (\d{1,2}), (\d{4})$/);
-    if (dateMatch) {
-      const month = months[dateMatch[1]];
-      const day = dateMatch[2].padStart(2, "0");
-      const year = dateMatch[3];
-      this.resultPageMovieReleaseDate = `${month}/${day}/${year}`;
-    } else {
-      this.resultPageMovieReleaseDate = releaseDateRaw;
-    }
+    // "September 11, 2010" -> "09/11/2010", matching the details page format; keep raw text if unparsable
+    const parsed = new Date(releaseDateRaw);
+    this.resultPageMovieReleaseDate = Number.isNaN(parsed.getTime())
+      ? releaseDateRaw
+      : parsed.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
   }
 
   async extractDetailPageMovieDetails() {

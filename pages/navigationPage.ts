@@ -1,9 +1,8 @@
-import { expect, TIMEOUT_MS, Page } from "../utils/fileImports/import";
+import { expect, Page } from "@playwright/test";
+import { TIMEOUT_MS } from "../utils/helpers";
 
 export class NavigationPage {
-  constructor(readonly page: Page) {
-    this.page = page;
-  }
+  constructor(readonly page: Page) {}
 
   async navigateToHomePage() {
     await this.page.locator('[aria-label="Home"]').click();
