@@ -42,15 +42,18 @@ export class PopularMoviesPage {
     await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
   }
 
-  async expectPopularMovieCardContains(poster: string, rating: string, content: string) {
-    const locators = [this.page.locator(`.${poster}`), this.page.locator(`.percent`), this.page.locator(`.${content}`)];
-    for (const locator of locators) {
-      await locator.first().waitFor({ state: "visible", timeout: TIMEOUT_MS });
-      const count = await locator.count();
-      if (count === 0) {
-        throw new Error(`No elements found for locator: ${locator}`);
-      }
-      await expect(locator.nth(0)).toBeVisible({ timeout: TIMEOUT_MS });
+  get movieCards() {
+    return this.page.locator("#media_results [data-object-id]:has(h2)");
+  }
+
+  async openFirstMovie() {
+    await this.movieCards.first().locator("a").first().click();
+  }
+
+  async expectPopularMovieCardContains() {
+    const card = this.movieCards.first();
+    for (const part of [".poster", "h2", ".release_date"]) {
+      await expect(card.locator(part)).toBeVisible({ timeout: TIMEOUT_MS });
     }
   }
 
@@ -73,35 +76,19 @@ export class PopularMoviesPage {
   }
 
   async getMovieNames() {
-    const movieNames: string[] = [];
-    const movieNameLocators = this.page.locator(".content>h2>a");
-    const count = await movieNameLocators.count();
-    const loopCount = count > 5 ? 5 : count;
-    for (let i = 0; i < loopCount; i++) {
-      const name = await movieNameLocators.nth(i).textContent();
-      if (name) movieNames.push(name.trim());
-    }
-    return movieNames;
+    return (await this.movieCards.locator("h2").allTextContents()).slice(0, 5).map((name) => name.trim());
   }
 
   async getReleaseDates() {
-    const releaseDates: string[] = [];
-    const releaseDateLocators = this.page.locator(".content>p");
-    const count = await releaseDateLocators.count();
-    const loopCount = count > 5 ? 5 : count;
-    for (let i = 0; i < loopCount; i++) {
-      const date = await releaseDateLocators.nth(i).textContent();
-      if (date) releaseDates.push(date.trim());
-    }
-    return releaseDates;
+    return (await this.movieCards.locator(".release_date").allTextContents()).slice(0, 5).map((date) => date.trim());
   }
 
   async sortMoviesBy(filterName: string) {
     this.beforeSortMovieNames = await this.getMovieNames();
     this.beforeSortReleaseDates = await this.getReleaseDates();
 
-    const sortMainMenu = this.page.getByRole("heading", { name: "Sort" });
-    const sortCombo = sortMainMenu.locator("..").locator('[role="combobox"]');
+    const sortMainMenu = this.page.getByRole("heading", { name: "Sort", exact: true });
+    const sortCombo = this.page.locator(".filter_panel").filter({ has: sortMainMenu }).locator('[role="combobox"]');
 
     // Only click sortMainMenu if combobox is not visible
     if (!(await sortCombo.isVisible())) {
@@ -109,7 +96,7 @@ export class PopularMoviesPage {
       await expect(sortCombo).toBeVisible();
     }
     await sortCombo.click();
-    await this.page.locator("li").filter({ hasText: filterName }).click();
+    await this.page.locator("li.k-list-item:visible").filter({ hasText: filterName }).click();
     await this.clickSearchButton();
     this.afterSortReleaseDates = await this.getReleaseDates();
   }
@@ -217,7 +204,7 @@ export class PopularMoviesPage {
 
   async expectMoviesWithGenres(genres: string[]) {
     const selectedGenres = [];
-    await this.page.locator(".card.style_1").first().click();
+    await this.openFirstMovie();
     await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
     const genresLocators = this.page.locator(".genres>a");
     const count = await genresLocators.count();
@@ -245,7 +232,7 @@ export class PopularMoviesPage {
   }
 
   async expectMoviesWithLanguages(language: string) {
-    await this.page.locator(".card.style_1").first().click();
+    await this.openFirstMovie();
     await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
     const originalLanguage = (await this.page.locator("p", { hasText: "Original Language" }).textContent())!
       .replace(/^Original Language/, "")
@@ -301,25 +288,20 @@ export class PopularMoviesPage {
   }
 
   async expectRatingsWithinRange(minRating: number, maxRating: number) {
+    const links = await this.movieCards
+      .locator("a:has(h2)")
+      .evaluateAll((anchors) => anchors.slice(0, 5).map((a) => (a as HTMLAnchorElement).href));
+    const detailPage = await this.page.context().newPage();
     const ratings: number[] = [];
-    const ratingLocators = this.page.locator(".icon");
-    const count = await ratingLocators.count();
-    const loopCount = count > 5 ? 5 : count;
-
-    for (let i = 0; i < loopCount; i++) {
-      const classAttr = await ratingLocators.nth(i).getAttribute("class");
-
-      if (!classAttr) continue;
-
-      const match = classAttr.match(/icon-r(\d+)/);
-
-      if (!match) {
-        throw new Error(`Rating class not found in: "${classAttr}"`);
+    try {
+      for (const link of links) {
+        await detailPage.goto(link);
+        ratings.push(Number(await detailPage.locator(".user_score_chart").getAttribute("data-percent")));
       }
-
-      const rating = Number(match[1]);
-      ratings.push(rating);
+    } finally {
+      await detailPage.close();
     }
+    expect(ratings.length, "No movie cards to read ratings from").toBeGreaterThan(0);
 
     for (const rating of ratings) {
       expect(
@@ -344,7 +326,7 @@ export class PopularMoviesPage {
 
   async expectMoviesWithKeyword(keywords: string) {
     const movieKeywords = [];
-    await this.page.locator(".card.style_1").first().click();
+    await this.openFirstMovie();
     await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
     const keywordsLocators = this.page.locator(".keywords a");
     const count = await keywordsLocators.count();
@@ -359,7 +341,7 @@ export class PopularMoviesPage {
     const movieKeywords = [];
     const selectedGenres = [];
     let count;
-    await this.page.locator(".card.style_1").first().click();
+    await this.openFirstMovie();
     await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
     const keywordsLocators = this.page.locator(".keywords a");
     count = await keywordsLocators.count();
