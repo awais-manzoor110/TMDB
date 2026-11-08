@@ -1,18 +1,12 @@
-import {
-  Page,
-  expect,
-  config,
-  webkit,
-  firefox,
-  chromium,
-  TIMEOUT_MS,
-  loadCookies,
-  saveCookies,
-  NavigationPage,
-} from "../fileImports/import.ts";
-const LOGIN_URL = process.env.PLAYWRIGHT_BASE_URL || config.use?.baseURL || "";
+import { chromium, expect, firefox, Page } from "@playwright/test";
 import dotenv from "dotenv";
+import config from "../../playwright.config";
+import { NavigationPage } from "../../pages/navigationPage";
+import { TIMEOUT_MS } from "../helpers";
+import { loadCookies, saveCookies } from "./cookieStorage";
+
 dotenv.config();
+const LOGIN_URL = process.env.PLAYWRIGHT_BASE_URL || config.use?.baseURL || "";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -23,24 +17,17 @@ function requireEnv(name: string): string {
 }
 
 async function loginStep(page: Page) {
-  try {
-    await expect(async () => {
-      await page.goto(`${LOGIN_URL}/login`);
-      const loginForm = page.locator("main").first();
-      await loginForm.locator("#auth_username").fill(requireEnv("TMDB_USERNAME"));
-      await loginForm.locator("#auth_password").fill(requireEnv("TMDB_PASSWORD"));
-      await loginForm.locator("#auth_login_button").click();
+  await expect(async () => {
+    await page.goto(`${LOGIN_URL}/login`);
+    const loginForm = page.locator("main").first();
+    await loginForm.locator("#auth_username").fill(requireEnv("TMDB_USERNAME"));
+    await loginForm.locator("#auth_password").fill(requireEnv("TMDB_PASSWORD"));
+    await loginForm.locator("#auth_login_button").click();
 
-      await page.waitForLoadState("networkidle");
-      await expect(page.locator("span.avatar.green")).toBeVisible();
-      await NavigationPage.prototype.navigateToHomePage.call({ page });
-    }).toPass({ timeout: TIMEOUT_MS });
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error("Error during login step:", error.message);
-      throw error;
-    }
-  }
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("span.avatar.green")).toBeVisible();
+    await new NavigationPage(page).navigateToHomePage();
+  }).toPass({ timeout: TIMEOUT_MS });
 }
 
 async function isSessionValid(page: Page): Promise<boolean> {
@@ -57,86 +44,37 @@ async function isSessionValid(page: Page): Promise<boolean> {
 }
 
 type BrowserOptions = {
-  browserType?: "chromium" | "firefox" | "webkit" | "msedge" | "chrome";
-  launchOptions?: Record<string, any>;
-  timezoneId?: string;
+  browserType?: "chromium" | "firefox" | "msedge";
   viewport?: { width: number; height: number };
 };
 
-export async function getAuthenticatedContext(browserOptions: BrowserOptions = {}, refreshCookies = false) {
-  const {
-    browserType = "chromium",
-    launchOptions = {},
-    timezoneId,
-    viewport = { width: 1536, height: 816 },
-  } = browserOptions;
+export async function getAuthenticatedContext({
+  browserType = "chromium",
+  viewport = { width: 1536, height: 816 },
+}: BrowserOptions = {}) {
+  const browser =
+    browserType === "firefox"
+      ? await firefox.launch()
+      : browserType === "msedge"
+        ? await chromium.launch({ channel: "msedge" })
+        : await chromium.launch({ headless: false });
+  const context = await browser.newContext({ viewport });
+  const page = await context.newPage();
 
-  let browser;
-
-  switch (browserType) {
-    case "webkit":
-      browser = await webkit.launch(launchOptions);
-      break;
-    case "firefox":
-      browser = await firefox.launch(launchOptions);
-      break;
-    case "msedge":
-      browser = await chromium.launch({ ...launchOptions, channel: "msedge" });
-      break;
-    case "chrome":
-      browser = await chromium.launch({ ...launchOptions, channel: "chrome" });
-      break;
-    default:
-      browser = await chromium.launch({ headless: false, ...launchOptions });
-  }
-
-  // 🕒 Apply timezone if specified, otherwise use system default
-  let context = await browser.newContext({
-    viewport: viewport ?? config.use?.viewport,
-  });
-  let page = await context.newPage();
-
-  if (timezoneId) {
-    await context.close();
-    context = await browser.newContext({
-      viewport: viewport ?? config.use?.viewport,
-      timezoneId,
-    });
-    page = await context.newPage();
-    console.log(`🕒 Using timezone: ${timezoneId}`);
-  }
-
-  const shouldUseCookies = ["chromium"].includes(browserType);
-
-  if (shouldUseCookies) {
-    const cookies = await loadCookies();
-
-    if (cookies.length > 0 && !refreshCookies) {
-      await context.addCookies(cookies);
-      const valid = await isSessionValid(page);
-
-      if (!valid) {
-        await saveCookies([]);
-        await loginStep(page);
-        const newCookies = await context.cookies();
-        await saveCookies(newCookies);
-        console.log("Cookies invalid, clearing and logging in again...");
-      }
-    } else {
-      if (refreshCookies && cookies.length > 0) {
-        console.log("Forcing cookie refresh...");
-        await saveCookies([]);
-      }
-
-      await loginStep(page);
-      const newCookies = await context.cookies();
-      await saveCookies(newCookies);
-      console.log("Logged in and saved new cookies.");
-    }
-  } else {
-    console.log(`Skipping cookie reuse for browser: ${browserType}`);
+  // ponytail: cookie reuse is chromium-only; other browsers log in fresh every run
+  if (browserType !== "chromium") {
     await loginStep(page);
+    return { browser, context, page };
   }
 
+  const cookies = await loadCookies();
+  if (cookies.length > 0) {
+    await context.addCookies(cookies);
+    if (await isSessionValid(page)) return { browser, context, page };
+    console.log("Cookies invalid, clearing and logging in again...");
+  }
+  await saveCookies([]);
+  await loginStep(page);
+  await saveCookies(await context.cookies());
   return { browser, context, page };
 }
