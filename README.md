@@ -39,10 +39,9 @@ tests/
 
 
 utils/
-  constant-timeout/
-  fileImports/
   fixtures/
   login-utils/
+  helpers.ts
 
 .github/workflows/playwright.yml
 playwright.config.ts
@@ -60,11 +59,11 @@ eslint.config.js
 All selectors and UI interactions are encapsulated inside page objects under `pages/`.
 Tests call intent-driven methods (e.g., `search()`, `switchCategory()`, `sortMoviesBy()`) rather than raw selectors.
 
-Page objects are injected into tests via **Playwright fixtures** (`utils/fixtures/fixtures.ts`) instead of being
+Page objects are injected into tests via **Playwright fixtures** (`utils/fixtures/base.fixtures.ts`) instead of being
 manually instantiated in `beforeEach`. A test simply declares the page objects it needs as arguments:
 
 ```ts
-import { test } from "../../utils/fileImports/import";
+import { test } from "../../utils/fixtures/base.fixtures";
 
 test("search redirects to results", async ({ globalSearchPage, searchResultsPage }) => {
   await globalSearchPage.search("global search", "Inception");
