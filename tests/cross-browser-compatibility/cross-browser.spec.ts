@@ -1,22 +1,18 @@
-import { test, GlobalSearchPage, SearchResultsPage, getAuthenticatedContext } from "../../utils/fileImports/import";
+import { test } from "../../utils/fixtures/base.fixtures";
+import { GlobalSearchPage } from "../../pages/globalSearchPage";
+import { SearchResultsPage } from "../../pages/searchResultsPage";
+import { getAuthenticatedContext } from "../../utils/login-utils/authenticatedContext";
 
 test.describe("Cross Browser Compatibility", () => {
-  let searchResultsPage: SearchResultsPage, globalSearchPage: GlobalSearchPage;
-
-  test("TC-RES-01: Search redirected to a dedicated results screen on firefox @firefox", async () => {
-    const { page: firefoxPage } = await getAuthenticatedContext({ browserType: "firefox" });
-    globalSearchPage = new GlobalSearchPage(firefoxPage);
-    searchResultsPage = new SearchResultsPage(firefoxPage);
-    await globalSearchPage.search("global search", "Inception");
-    await searchResultsPage.expectSearchPageLoaded();
-    await firefoxPage.close();
-  });
-  test("TC-RES-02: Search redirected to a dedicated results screen on edge @msedge", async () => {
-    const { page: msEdgePage } = await getAuthenticatedContext({ browserType: "msedge" });
-    globalSearchPage = new GlobalSearchPage(msEdgePage);
-    searchResultsPage = new SearchResultsPage(msEdgePage);
-    await globalSearchPage.search("global search", "Inception");
-    await searchResultsPage.expectSearchPageLoaded();
-    await msEdgePage.close();
-  });
+  for (const [id, browserType, label] of [
+    ["TC-RES-01", "firefox", "firefox"],
+    ["TC-RES-02", "msedge", "edge"],
+  ] as const) {
+    test(`${id}: Search redirected to a dedicated results screen on ${label} @${browserType}`, async () => {
+      const { page } = await getAuthenticatedContext({ browserType });
+      await new GlobalSearchPage(page).search("global search", "Inception");
+      await new SearchResultsPage(page).expectSearchPageLoaded();
+      await page.close();
+    });
+  }
 });
