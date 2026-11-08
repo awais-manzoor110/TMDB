@@ -1,14 +1,6 @@
 import { expect, Page, TIMEOUT_MS } from "../utils/fileImports/import";
 
-export type SearchCategory =
-  | "movie"
-  | "tv"
-  | "person"
-  | "company"
-  | "keyword"
-  | "collection"
-  | "network"
-  | "award";
+export type SearchCategory = "movie" | "tv" | "person" | "company" | "keyword" | "collection" | "network" | "award";
 
 export class SearchResultsPage {
   resultPageMovieName: string | null;
@@ -31,9 +23,13 @@ export class SearchResultsPage {
     await this.extractDetailPageMovieDetails();
   }
 
+  get resultCards() {
+    return this.page.locator("div.search_results:not(.hide) [data-object-id]");
+  }
+
   async expectSearchPageLoaded() {
     await expect(this.page).toHaveURL(new RegExp(`/search`, "i"));
-    await expect(this.page.locator(".settings_panel")).toBeVisible({ timeout: TIMEOUT_MS });
+    await expect(this.page.locator("#search_menu_items")).toBeVisible({ timeout: TIMEOUT_MS });
   }
 
   async switchCategory(category: SearchCategory) {
@@ -45,30 +41,17 @@ export class SearchResultsPage {
     await expect(this.page).toHaveURL(new RegExp(`/search/${category}\\?query=${query}`, "i"));
   }
 
-  async expectSearchResultCardContains(poster: string, title: string, releaseDate: string, overview: string) {
-    const locators = [
-      this.page.locator(`[class="${poster}"]`),
-      this.page.locator(`[class="${title}"]`),
-      this.page.locator(`[class="${releaseDate}"]`),
-      this.page.locator(`[class="${overview}"]`),
-    ];
-    for (const locator of locators) {
-      await locator.first().waitFor({ state: "visible", timeout: TIMEOUT_MS });
-      const count = await locator.count();
-      if (count === 0) {
-        throw new Error(`No elements found for locator: ${locator}`);
-      }
-      for (let i = 0; i < count - 1; i++) {
-        await expect(locator.nth(i)).toBeVisible({ timeout: TIMEOUT_MS });
-      }
+  async expectSearchResultCardContains() {
+    const card = this.resultCards.first();
+    for (const part of [".poster", "h2", ".release_date", "p"]) {
+      await expect(card.locator(part).first()).toBeVisible({ timeout: TIMEOUT_MS });
     }
   }
   async extractSearchPageMovieDetails() {
-    const titleRaw = await this.page.locator(`[class="title"]`).first().innerText();
-    // Get only the movie name
-    this.resultPageMovieName = titleRaw.split("\n")[0].trim();
+    const card = this.resultCards.first();
+    this.resultPageMovieName = (await card.locator("h2 > span").first().innerText()).trim();
 
-    const releaseDateRaw = await this.page.locator(`[class="release_date"]`).first().innerText();
+    const releaseDateRaw = await card.locator(".release_date").innerText();
     const months: { [key: string]: string } = {
       January: "01",
       February: "02",
@@ -106,8 +89,8 @@ export class SearchResultsPage {
     this.detailPageMovieReleaseDate = releaseDetailRaw.replace(/\s*\([A-Z]{2}\)$/, "");
   }
   async expectSearchTitleContains(text: string) {
+    await expect(this.resultCards.first().locator("h2")).toContainText(text, { timeout: TIMEOUT_MS });
     await this.extractSearchPageMovieDetails();
-    await expect(this.page.locator(`[class="title"]`).first()).toContainText(text, { timeout: TIMEOUT_MS });
   }
 
   async expectNoResultsState() {
