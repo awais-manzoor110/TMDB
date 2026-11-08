@@ -34,7 +34,7 @@ test.describe("Popular Movies – Filters", () => {
     await popularMoviesPage.applyOttPlatformFilter("Zee5");
     await popularMoviesPage.expectMoviesOrderChanged();
     await popularMoviesPage.applyOttPlatformFilter("Zee5");
-    await popularMoviesPage.applyOttPlatformFilter("JustWatchTV");
+    await popularMoviesPage.applyOttPlatformFilter("JustWatch TV Beta");
     await popularMoviesPage.expectMoviesOrderChanged();
   });
   test("TC-POP-05: Show me filtering @medium @popular @filters", async ({ popularMoviesPage }) => {
@@ -47,13 +47,21 @@ test.describe("Popular Movies – Filters", () => {
     await popularMoviesPage.expectMoviesOrderChanged();
     await popularMoviesPage.expectReleaseDatesWithinRange("1/1/2025", "1/1/2025");
   });
-  test("TC-POP-07: Release date range filtering -- Failure Case @medium @popular @filters", async ({
-    popularMoviesPage,
-  }) => {
-    await popularMoviesPage.releaseDateRangeFilter("6/23/2025", "7/23/2025");
-    await popularMoviesPage.expectMoviesOrderChanged();
-    await popularMoviesPage.expectReleaseDatesWithinRange("6/23/2025", "7/23/2025");
-  });
+  test(
+    "TC-POP-07: Release date range filtering -- Failure Case @medium @popular @filters",
+    {
+      annotation: {
+        type: "bug",
+        description:
+          'TMDB app bug: the 6/23/2025–7/23/2025 release date filter matches movies by any regional release ("Search all releases/countries"), but cards show a different date, e.g. Demon Slayer: Infinity Castle shows 8/14/2025 and The Fantastic 4: First Steps shows 7/25/2025. Re-enable once the card date agrees with the filter.',
+      },
+    },
+    async ({ popularMoviesPage }) => {
+      await popularMoviesPage.releaseDateRangeFilter("6/23/2025", "7/23/2025");
+      await popularMoviesPage.expectMoviesOrderChanged();
+      await popularMoviesPage.expectReleaseDatesWithinRange("6/23/2025", "7/23/2025");
+    },
+  );
   test("TC-POP-08: Multiple genre filter @critical @popular @filters", async ({ popularMoviesPage }) => {
     await popularMoviesPage.setGenreFilter(["Action", "Adventure"]);
     await popularMoviesPage.expectMoviesOrderChanged();
