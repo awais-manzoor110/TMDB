@@ -1,45 +1,20 @@
-import { expect, Page, TIMEOUT_MS } from "../utils/fileImports/import";
+import { expect, Page } from "@playwright/test";
+import { clickSearchAndWait, TIMEOUT_MS } from "../utils/helpers";
 
 export class PopularMoviesPage {
-  beforeSortMovieNames: Array<string> | null;
-  afterSortMovieNames: Array<string> | null;
-  beforeSortReleaseDates: Array<string> | null;
-  afterSortReleaseDates: Array<string> | null;
-  lastError: unknown;
-  selectedLanguage: string | null;
-  constructor(readonly page: Page) {
-    this.page = page;
-    this.beforeSortMovieNames = [];
-    this.afterSortMovieNames = [];
-    this.beforeSortReleaseDates = [];
-    this.afterSortReleaseDates = [];
-    this.selectedLanguage = "";
-    this.lastError = null;
-  }
+  beforeSortMovieNames: string[] = [];
+  afterSortMovieNames: string[] = [];
+  beforeSortReleaseDates: string[] = [];
+  afterSortReleaseDates: string[] = [];
+  selectedLanguage = "";
+  constructor(readonly page: Page) {}
 
   async clickSearchButton() {
-    try {
-      await expect(async () => {
-        try {
-          this.page.getByRole("link", { name: "Search" }).nth(1).click();
-          await this.page.waitForResponse((resp) => resp.url().includes("/discover/movie") && resp.status() === 200, {
-            timeout: 5000,
-          });
-        } catch (err) {
-          this.lastError = err;
-          throw err;
-        }
-      }).toPass({ timeout: TIMEOUT_MS });
-    } catch {
-      console.error(
-        "Failure after timeout:",
-        typeof this.lastError === "object" && this.lastError && "message" in this.lastError
-          ? (this.lastError as { message?: string }).message
-          : String(this.lastError),
-      );
-      throw this.lastError;
-    }
-    await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
+    await clickSearchAndWait(
+      this.page,
+      this.page.locator(".apply.small").getByRole("link", { name: "Search" }),
+      "/discover/movie",
+    );
   }
 
   get movieCards() {
@@ -62,7 +37,6 @@ export class PopularMoviesPage {
     await this.page.getByRole("link", { name: "Load More" }).click();
 
     let callCount = 0;
-    await this.page.route("**/discover/movie/items", (route) => route.continue());
     this.page.on("response", (response) => {
       if (response.url().includes("/discover/movie/items") && response.status() === 200) {
         callCount++;
@@ -102,31 +76,16 @@ export class PopularMoviesPage {
   }
 
   async expectMoviesOrderChanged() {
-    try {
-      await expect(async () => {
-        try {
-          this.afterSortMovieNames = await this.getMovieNames();
-          expect(this.beforeSortMovieNames).not.toEqual(this.afterSortMovieNames);
-        } catch (err) {
-          this.lastError = err;
-          throw err;
-        }
-      }).toPass({ timeout: TIMEOUT_MS });
-    } catch {
-      console.error(
-        "Failure after timeout:",
-        typeof this.lastError === "object" && this.lastError && "message" in this.lastError
-          ? (this.lastError as { message?: string }).message
-          : String(this.lastError),
-      );
-      throw this.lastError;
-    }
+    await expect(async () => {
+      this.afterSortMovieNames = await this.getMovieNames();
+      expect(this.beforeSortMovieNames).not.toEqual(this.afterSortMovieNames);
+    }).toPass({ timeout: TIMEOUT_MS });
   }
 
   async expectReleaseDatesOrderChanged() {
     const parseDate = (dateStr: string) => new Date(dateStr);
-    const descDates = (this.beforeSortReleaseDates || []).map(parseDate);
-    const ascDates = (this.afterSortReleaseDates || []).map(parseDate);
+    const descDates = this.beforeSortReleaseDates.map(parseDate);
+    const ascDates = this.afterSortReleaseDates.map(parseDate);
 
     const minLength = Math.min(descDates.length, ascDates.length);
     for (let i = 0; i < minLength; i++) {
@@ -173,7 +132,7 @@ export class PopularMoviesPage {
   async expectReleaseDatesWithinRange(fromDate: string, toDate: string) {
     const from = new Date(fromDate);
     const to = new Date(toDate);
-    const releaseDates = this.afterSortReleaseDates ?? [];
+    const releaseDates = this.afterSortReleaseDates;
 
     releaseDates.forEach((date, index) => {
       const releaseDate = new Date(date);
@@ -202,22 +161,29 @@ export class PopularMoviesPage {
     await this.clickSearchButton();
   }
 
-  async expectMoviesWithGenres(genres: string[]) {
-    const selectedGenres = [];
+  async openFirstMovieDetails() {
     await this.openFirstMovie();
     await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
-    const genresLocators = this.page.locator(".genres>a");
-    const count = await genresLocators.count();
-    for (let i = 0; i < count; i++) {
-      const genre = await genresLocators.nth(i).textContent();
-      if (genre) selectedGenres.push(genre.trim());
-    }
+  }
+
+  async expectDetailsGenres(genres: string[]) {
+    const selectedGenres = (await this.page.locator(".genres>a").allTextContents()).map((g) => g.trim());
     for (const genre of genres) {
       expect(
         selectedGenres,
         `Expected genre "${genre}" not found. Actual genres: ${selectedGenres.join(", ")}`,
       ).toContain(genre);
     }
+  }
+
+  async expectDetailsKeyword(keyword: string) {
+    const movieKeywords = (await this.page.locator(".keywords a").allTextContents()).map((k) => k.trim());
+    expect(movieKeywords).toContain(keyword.toLowerCase());
+  }
+
+  async expectMoviesWithGenres(genres: string[]) {
+    await this.openFirstMovieDetails();
+    await this.expectDetailsGenres(genres);
   }
 
   async setLanguageFilter(language: string) {
@@ -232,8 +198,7 @@ export class PopularMoviesPage {
   }
 
   async expectMoviesWithLanguages(language: string) {
-    await this.openFirstMovie();
-    await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
+    await this.openFirstMovieDetails();
     const originalLanguage = (await this.page.locator("p", { hasText: "Original Language" }).textContent())!
       .replace(/^Original Language/, "")
       .trim();
@@ -325,43 +290,13 @@ export class PopularMoviesPage {
   }
 
   async expectMoviesWithKeyword(keywords: string) {
-    const movieKeywords = [];
-    await this.openFirstMovie();
-    await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
-    const keywordsLocators = this.page.locator(".keywords a");
-    const count = await keywordsLocators.count();
-    for (let i = 0; i < count; i++) {
-      const keyword = await keywordsLocators.nth(i).textContent();
-      movieKeywords.push(keyword);
-    }
-    expect(movieKeywords).toContain(keywords.toLowerCase());
+    await this.openFirstMovieDetails();
+    await this.expectDetailsKeyword(keywords);
   }
 
   async expectCombinedFilters(genres: string[], keywords: string) {
-    const movieKeywords = [];
-    const selectedGenres = [];
-    let count;
-    await this.openFirstMovie();
-    await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
-    const keywordsLocators = this.page.locator(".keywords a");
-    count = await keywordsLocators.count();
-    for (let i = 0; i < count; i++) {
-      const keyword = await keywordsLocators.nth(i).textContent();
-      movieKeywords.push(keyword);
-    }
-    expect(movieKeywords).toContain(keywords.toLowerCase());
-
-    const genresLocators = this.page.locator(".genres>a");
-    count = await genresLocators.count();
-    for (let i = 0; i < count; i++) {
-      const genre = await genresLocators.nth(i).textContent();
-      if (genre) selectedGenres.push(genre.trim());
-    }
-    for (const genre of genres) {
-      expect(
-        selectedGenres,
-        `Expected genre "${genre}" not found. Actual genres: ${selectedGenres.join(", ")}`,
-      ).toContain(genre);
-    }
+    await this.openFirstMovieDetails();
+    await this.expectDetailsKeyword(keywords);
+    await this.expectDetailsGenres(genres);
   }
 }

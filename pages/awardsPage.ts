@@ -1,31 +1,19 @@
-import { expect, Page, TIMEOUT_MS } from "../utils/fileImports/import";
+import { expect, Page } from "@playwright/test";
+import { clickSearchAndWait, TIMEOUT_MS } from "../utils/helpers";
 
 export class AwardsPage {
-  appliedFromDate: string | null;
-  listedCeremonyDates: Array<string> | null;
-  lastError: unknown;
-  constructor(readonly page: Page) {
-    this.page = page;
-    this.appliedFromDate = null;
-    this.listedCeremonyDates = [];
-    this.lastError = null;
-  }
+  appliedFromDate: string | null = null;
+  listedCeremonyDates: { name: string; date: string }[] = [];
+  constructor(readonly page: Page) {}
 
   /** Award cards rendered in the results grid — keyed by the award's own id, never by position. */
   private awardCards() {
     return this.page.locator("#media-list").locator('[class*="comp:award-card"]');
   }
 
-  private searchButton() {
-    return this.page.locator(".apply.small").getByRole("link", { name: "Search" });
-  }
-
-  /** Today in the ISO form the Latest Ceremony datepicker parses. */
+  /** Today as local yyyy-mm-dd, the form the Latest Ceremony datepicker parses. */
   private todayAsIsoDate() {
-    const today = new Date();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
-    return `${today.getFullYear()}-${month}-${day}`;
+    return new Date().toLocaleDateString("en-CA");
   }
 
   /** Calendar-day number, so an ISO filter date and a rendered "March 15, 2026" compare cleanly. */
@@ -42,32 +30,11 @@ export class AwardsPage {
   }
 
   async clickSearchButton() {
-    const searchButton = this.searchButton();
-    try {
-      await expect(async () => {
-        try {
-          await expect(searchButton).toBeVisible({ timeout: 5000 });
-          await Promise.all([
-            this.page.waitForResponse((resp) => resp.url().includes("/discover/award") && resp.status() === 200, {
-              timeout: 10_000,
-            }),
-            searchButton.click(),
-          ]);
-        } catch (err) {
-          this.lastError = err;
-          throw err;
-        }
-      }).toPass({ timeout: TIMEOUT_MS });
-    } catch {
-      console.error(
-        "Failure after timeout:",
-        typeof this.lastError === "object" && this.lastError && "message" in this.lastError
-          ? (this.lastError as { message?: string }).message
-          : String(this.lastError),
-      );
-      throw this.lastError;
-    }
-    await this.page.waitForLoadState("networkidle", { timeout: TIMEOUT_MS });
+    await clickSearchAndWait(
+      this.page,
+      this.page.locator(".apply.small").getByRole("link", { name: "Search" }),
+      "/discover/award",
+    );
   }
 
   async expectAwardsListed() {
@@ -102,14 +69,14 @@ export class AwardsPage {
   }
 
   async getListedCeremonyDates() {
-    const ceremonyDates: string[] = [];
+    const ceremonyDates: { name: string; date: string }[] = [];
     const cards = this.awardCards();
     const count = await cards.count();
     for (let i = 0; i < count; i++) {
       const card = cards.nth(i);
-      const name = (await card.locator("h2 span").textContent())?.trim();
+      const name = (await card.locator("h2 span").textContent())?.trim() ?? "";
       const date = (await card.locator("span.release_date").textContent())?.trim();
-      if (date) ceremonyDates.push(`${name} | ${date}`);
+      if (date) ceremonyDates.push({ name, date });
     }
     return ceremonyDates;
   }
@@ -118,16 +85,15 @@ export class AwardsPage {
     const fromDate = this.appliedFromDate;
     expect(fromDate, "No Latest Ceremony from-date has been applied yet").not.toBeNull();
 
-    const listed = this.listedCeremonyDates ?? [];
+    const listed = this.listedCeremonyDates;
     expect(listed.length, "Expected at least one award to remain after filtering").toBeGreaterThan(0);
 
     const from = this.toCalendarDay(fromDate!);
-    for (const entry of listed) {
-      const [name, date] = entry.split(" | ");
+    for (const { name, date } of listed) {
       expect(
         this.toCalendarDay(date),
         `"${name}" has ceremony date ${date}, which is before the applied from date ${fromDate}
-      All listed awards: ${listed.join(", ")}`,
+      All listed awards: ${listed.map((a) => `${a.name} | ${a.date}`).join(", ")}`,
       ).toBeGreaterThanOrEqual(from);
     }
   }
